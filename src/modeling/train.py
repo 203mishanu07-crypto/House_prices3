@@ -78,8 +78,18 @@ class Trainer:
                 torch.backends.cudnn.benchmark = False
                 torch.use_deterministic_algorithms(True)
 
-                X_train, X_val = X.iloc[train_idx], X.iloc[test_idx]
-                y_train, y_val = y.iloc[train_idx], y.iloc[test_idx]
+                X_train = X.iloc[train_idx].copy()
+                y_train = y.iloc[train_idx].copy()
+
+                X_val = X.iloc[test_idx].copy()
+                y_val = y.iloc[test_idx].copy()
+
+                # Эксперимент с двумя ранее найденными выбросами. Убираем тут, так как обнаружил поздно, чтобы не менять CV
+                if "Id" in X_train.columns:
+                    keep = ~X_train["Id"].isin([524, 1299])
+
+                    X_train = X_train.loc[keep].copy()
+                    y_train = y_train.loc[keep].copy()
                 
                 model = clone(estimator)
                 model.set_params(**params,**fit_params)

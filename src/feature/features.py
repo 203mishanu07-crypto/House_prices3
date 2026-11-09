@@ -41,6 +41,8 @@ class FeatureTransformer(TransformerMixin, BaseEstimator):
             "Electrical",
         ]
     num_cols = [
+            "GrLivArea",
+            "GrLivArea_log",
             "FullBath",
             "TotRmsAbvGrd",
             "GarageCars",
@@ -109,6 +111,8 @@ class FeatureTransformer(TransformerMixin, BaseEstimator):
     def __init__(self,cat_boosting = False, selected_columns = None):
         self.cat_boosting = cat_boosting
         self.X_cols = [
+            "GrLivArea",
+            "GrLivArea_log",
             "MSSubClass",
             "MSZoning",
             "Alley",
@@ -286,10 +290,16 @@ class FeatureTransformer(TransformerMixin, BaseEstimator):
         #Собираем самые частые значения фичей на трейн
         cols = ["KitchenQual", "Functional"]
 
+        #Собираем моды
         self.fill_modes_ = {
             col: data[col].mode().iloc[0]
             for col in cols}
-        
+
+        #Собираем медианы
+        self.quality_modes_ = {
+            col: data[col].mode().iloc[0]
+            for col in ["PoolQC", "BsmtQual"]
+}
         if self.selected_columns is None:
             self.selected_columns_ = list(self.X_cols)
         else:
@@ -343,6 +353,24 @@ class FeatureTransformer(TransformerMixin, BaseEstimator):
 
     def fill_missing(self, data):
         data = data.copy()
+
+        has_pool = data["PoolArea"].fillna(0).gt(0)
+
+        has_basement = (
+            data["TotalBsmtSF"].fillna(0).gt(0)
+            | data[["BsmtQual", "BsmtCond", "BsmtFinType1"]]
+                .notna().any(axis=1)
+        )
+
+        data.loc[has_pool, "PoolQC"] = (
+            data.loc[has_pool, "PoolQC"]
+                .fillna(self.quality_modes_["PoolQC"])
+        )
+
+        data.loc[has_basement, "BsmtQual"] = (
+            data.loc[has_basement, "BsmtQual"]
+                .fillna(self.quality_modes_["BsmtQual"])
+        )
 
         default_na = [
             "Alley",

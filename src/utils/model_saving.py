@@ -2,12 +2,18 @@ import joblib
 from pathlib import Path
 from config import Config
 import json
+import shutil
 
 class ModelSaver:
     @staticmethod
     def save_ensemble(ensemble, model_name, save_dir=Config.path_to_save_models, save_fs = None):
         path = Path(save_dir) / model_name
+        
+        if path.exists():
+            shutil.rmtree(path)
+
         path.mkdir(parents=True, exist_ok=True)
+
 
         for fold_idx, pipeline in enumerate(ensemble):
             joblib.dump(pipeline,path / f"fold_{fold_idx}.pkl")
@@ -34,8 +40,6 @@ class ModelSaver:
             print(f"\n{'=' * 40}")
             print(f"Model: {model_name}")
 
-            models[model_name] = {}
-
             model_paths = sorted(
                 model_dir.glob("fold_*.pkl"),
                 key=lambda p: int(p.stem.split("_")[-1])
@@ -45,8 +49,21 @@ class ModelSaver:
             else:
                 continue
             
-            pipelines = [joblib.load(path) for path in model_paths]
+            pipelines = []
 
+            for path in model_paths:
+                try:
+                    pipeline = joblib.load(path)
+                except EOFError as exc:
+                    raise RuntimeError(
+                        f"Не удалось прочитать модель: {path}\n"
+                        f"Размер файла: {path.stat().st_size} байт. "
+                        "Вероятно, сохранение не завершилось."
+                    ) from exc
+
+                pipelines.append(pipeline)
+
+            models[model_name] = {}
             models[model_name]['models'] = pipelines
 
             features_path = model_dir / f"{model_name}_features.json"

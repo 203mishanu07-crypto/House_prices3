@@ -8,12 +8,73 @@ import shap
 class Drawer():
 # Отбирает из результатов все значения с целевым, а остальные по указаному фиксу
     @staticmethod
-    def draw_parameter(results, parameter, fixed_params=None):
-        column = f"param_{parameter}"
+    def _filter_fixed_params(results, fixed_params, varying_params):
+        if fixed_params is None:
+            raise ValueError("Передай лучшие параметры в fixed_params.")
 
         data = results.copy()
-        data[column] = data[column].astype(float)
+
+        for parameter, value in fixed_params.items():
+            if parameter in varying_params:
+                continue
+
+            column = f"param_{parameter}"
+
+            if column not in data.columns:
+                raise ValueError(
+                    f"Нельзя зафиксировать {parameter}: "
+                    f"столбец {column} отсутствует."
+                )
+
+            if isinstance(value, (list, tuple, np.ndarray)):
+                mask = data[column].map(
+                    lambda x: (
+                        np.array_equal(x, value)
+                        if isinstance(x, (list, tuple, np.ndarray))
+                        else False
+                    )
+                )
+            elif value is None:
+                mask = data[column].isna()
+            elif np.isscalar(value) and pd.isna(value):
+                mask = data[column].isna()
+            else:
+                mask = data[column].map(
+                    lambda x: (
+                        False
+                        if isinstance(x, (list, tuple, np.ndarray))
+                        else x == value
+                    )
+                ).fillna(False)
+
+            data = data.loc[mask].copy()
+
+        if data.empty:
+            raise ValueError(
+                "После фиксации остальных параметров "
+                "не осталось результатов."
+            )
+
+        return data
+
+    @staticmethod
+    def draw_parameter(results, parameter, fixed_params=None):
+        data = Drawer._filter_fixed_params(
+            results,
+            fixed_params,
+            varying_params={parameter},
+        )
+
+        column = f"param_{parameter}"
+        data[column] = pd.to_numeric(data[column], errors="raise")
         data = data.sort_values(column)
+
+        if data.duplicated(subset=[column]).any():
+            raise ValueError(
+                "Одному значению параметра соответствуют несколько "
+                "результатов. Проверь повторные конфигурации "
+                "и полноту fixed_params."
+            )
 
         fig, ax = plt.subplots(figsize=(16, 8))
 
@@ -26,52 +87,62 @@ class Drawer():
 
         ax.set_xlabel(parameter)
         ax.set_ylabel("CV RMSE")
-        ax.set_title(f"RMSE vs {parameter}")
+        ax.set_title(f"RMSE vs {parameter}; остальные параметры фиксированы")
         ax.grid(alpha=0.3)
+        fig.tight_layout()
 
         return fig
 
     @staticmethod
     def draw_heatmap(results, parameter_x, parameter_y, fixed_params=None):
-        data = results.copy()
+        if parameter_x == parameter_y:
+            raise ValueError("Для осей выбери разные параметры.")
 
-        data[parameter_x] = data[f"param_{parameter_x}"].astype(float)
-        data[parameter_y] = data[f"param_{parameter_y}"].astype(float)
+        data = Drawer._filter_fixed_params(
+            results,
+            fixed_params,
+            varying_params={parameter_x, parameter_y},
+        )
 
-        duplicates = data.duplicated(
-            subset=[parameter_x, parameter_y]
-        ).sum()
+        column_x = f"param_{parameter_x}"
+        column_y = f"param_{parameter_y}"
 
-        if duplicates > 0:
-            print(
-                f"Найдено {duplicates} повторов пар параметров. "
-                "Для каждой пары будет рассчитан средний CV RMSE."
+        data[column_x] = pd.to_numeric(data[column_x], errors="raise")
+        data[column_y] = pd.to_numeric(data[column_y], errors="raise")
+
+        if data.duplicated(subset=[column_x, column_y]).any():
+            raise ValueError(
+                "Одной паре параметров соответствуют несколько "
+                "результатов. Проверь повторные конфигурации "
+                "и полноту fixed_params."
             )
 
-        heatmap_data = data.pivot_table(
-            index=parameter_y,
-            columns=parameter_x,
-            values="mean_val_score",
-            aggfunc="mean",
-        ).sort_index().sort_index(axis=1)
-
-        if heatmap_data.empty:
-            raise ValueError("Нет данных для построения heatmap.")
+        heatmap_data = (
+            data.pivot(
+                index=column_y,
+                columns=column_x,
+                values="mean_val_score",
+            )
+            .sort_index()
+            .sort_index(axis=1)
+        )
 
         fig, ax = plt.subplots(figsize=(14, 8))
 
         heatmap = sns.heatmap(
             heatmap_data,
+            mask=heatmap_data.isna(),
             annot=True,
             fmt=".4f",
-            cmap="viridis",
+            cmap="viridis_r",
             ax=ax,
             cbar_kws={"label": "Mean CV RMSE"},
         )
 
         ax.set_xlabel(parameter_x)
         ax.set_ylabel(parameter_y)
-        ax.set_title(f"CV RMSE: {parameter_y} vs {parameter_x}")
+        ax.set_title("CV RMSE; остальные параметры фиксированы")
+        fig.tight_layout()
 
         return heatmap
 

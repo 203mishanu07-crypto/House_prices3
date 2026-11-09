@@ -112,7 +112,7 @@ from src.modeling.predict import Predictor
 
 
 class MyStackingRidge:
-    def __init__(self,meta_cols = None, groups = {}):
+    def __init__(self,meta_cols = None, groups = {}, return_mean = False):
 
         def standard_pipe(model):
             return Pipeline([
@@ -151,6 +151,8 @@ class MyStackingRidge:
             ("model", Ridge())
         ])
 
+        self.return_mean = return_mean
+        
         self.ensembles = {}
         self.oof = {}
 
@@ -216,6 +218,13 @@ class MyStackingRidge:
         oof_df = pd.DataFrame(self.oof, index=X.index)
         self.meta_data = self._meta_features(oof_df)
 
+        if self.return_mean:
+            oof_pred = self.meta_data.to_numpy().mean(axis=1)
+            return {
+                    "oof_rmse": root_mean_squared_error(y, oof_pred),
+                    "oof_pred": oof_pred,
+                    }
+
         self.meta_ensemble, meta_res = train.Trainer.cross_validate(
             X=self.meta_data,
             y=y,
@@ -224,7 +233,7 @@ class MyStackingRidge:
             fit_params=ridge_meta_params["fit_param"],
             cv_folds=cv_folds,
             random_state=random_state
-        )
+        )   
 
         return meta_res
 
@@ -239,6 +248,9 @@ class MyStackingRidge:
         }, index=X.index)
 
         meta_data = self._meta_features(predictions)
+
+        if self.return_mean:
+            return meta_data.to_numpy().mean(axis=1)
 
         pred_log = np.mean(
             [pipe.predict(meta_data) for pipe in self.meta_ensemble],
