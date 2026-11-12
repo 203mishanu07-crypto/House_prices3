@@ -13,18 +13,18 @@ class Config:
     experiments_name = "House_Prices_Kaggle"
 
     path_train_data = Path(
-        r"C:\Users\user\3D Objects\code 2\Mentor_python\Block 2\Final_prodject\House-prices3\data\raw\train.csv"
+        r".\House-prices3\data\raw\train.csv"
     )
     path_test_data = Path(
-        r"C:\Users\user\3D Objects\code 2\Mentor_python\Block 2\Final_prodject\House-prices3\data\raw\test.csv"
+        r".\House-prices3\data\raw\test.csv"
     )
 
     path_to_save_models = Path(
-        r"C:\Users\user\3D Objects\code 2\Mentor_python\Block 2\Final_prodject\House-prices3\Models"
+        r.\House-prices3\Models"
     )
 
     path_to_submission = Path(
-        r"C:\Users\user\3D Objects\code 2\Mentor_python\Block 2\Final_prodject\House-prices3\data\submission"
+        r".\House-prices3\data\submission"
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
