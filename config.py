@@ -9,7 +9,7 @@ class Config:
     # Seed
     seed = 42
 
-    experiment_uri = "http://localhost:5000"
+    experiment_uri = "http://127.0.0.1:5000"
     experiments_name = "House_Prices_Kaggle"
 
     path_train_data = Path(
