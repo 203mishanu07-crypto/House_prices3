@@ -1,14 +1,11 @@
-from copy import deepcopy
-from pathlib import Path
-from uuid import uuid4
-from sklearn.base import BaseEstimator, RegressorMixin
-import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.base import BaseEstimator, RegressorMixin
 from tqdm.auto import tqdm
 
 from src.custom_datasets.dataset import transform_data
+
 
 class Callback:
     def on_train_begin(self, trainer):
@@ -22,6 +19,14 @@ class Callback:
 
 
 class CheckpointManager(Callback):
+    """Хранит лучшие веса сети в памяти и восстанавливает их после обучения.
+    Копия state_dict сохраняется на CPU при достаточном улучшении
+    контролируемой метрики, модели обучаются сравнительно быстро,
+    поэтому хранить параметры на жесткой памяти мне показалось не рациональным,
+    но в случае надобности этот класс можно легко расширить до данного функционала.
+    Порог улучшения берётся из saving_threshold
+    обучаемой модели.
+    """
 
     def __init__(self):
         self.best_state = None
@@ -32,13 +37,11 @@ class CheckpointManager(Callback):
     def is_better(self, trainer):
         return (
             trainer.best_epoch is None
-            or trainer.val_RMSE
-            < trainer.best_score - trainer.saving_threshold
+            or trainer.val_RMSE < trainer.best_score - trainer.saving_threshold
         )
 
     def on_epoch_end(self, trainer):
         if self.is_better(trainer):
-
             trainer.best_score = float(trainer.val_RMSE)
             trainer.best_epoch = trainer.epoch
 
@@ -54,6 +57,12 @@ class CheckpointManager(Callback):
 
 
 class EarlyStopping(Callback):
+    """Останавливает обучение после заданного числа эпох без улучшения.
+    Улучшением считается изменение контролируемой метрики не меньше
+    early_stopping_threshold. Допустимое число эпох без такого улучшения
+    задаётся early_stopping_patience.
+    """
+
     def on_train_begin(self, trainer):
         self.patience_ = trainer.early_stopping_patience
         self.threshold_ = trainer.early_stopping_threshold
@@ -74,6 +83,7 @@ class EarlyStopping(Callback):
         if self.count >= self.patience_:
             trainer.stop_train = True
 
+
 class RMSELoss(nn.Module):
     def __init__(self, eps=1e-8):
         super().__init__()
@@ -84,31 +94,37 @@ class RMSELoss(nn.Module):
         return torch.sqrt(self.mse(predictions, targets) + self.eps)
 
 
-class MyModel(nn.Module,RegressorMixin,BaseEstimator):
+class MyModel(nn.Module, RegressorMixin, BaseEstimator):
+    """Обёртка над табличной нейронной сетью для работы в sklearn-пайплайне.
+
+    Объединяет эмбеддинги категориальных признаков с числовыми входами
+    и передаёт их в полносвязную сеть. Ожидает данные, уже подготовленные
+    внешним encoder.
+
+    Управляет обучением по батчам, scheduler, callbacks и историей метрик.
+    Выход сети, функция потерь и методы предсказания соответствуют
+    конкретной реализации задачи.
+    """
+
     def __init__(
         self,
         cat_cols=None,
         num_cols=None,
         epochs=250,
         device="cuda",
-
         # Архитектура
         emb_dim=12,
         inner_n=128,
         drop_n=0.2,
         n_layers=2,
         use_batchnorm=False,
-
         # Loss
         loss_reg=nn.MSELoss,
-
         # Reg
         l1_lambda=0.0,
-
         # Optimizer
         optim=torch.optim.Adam,
         optim_lr=0.005,
-
         # Scheduler
         scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau,
         lr_scheduler=True,
@@ -116,18 +132,14 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
         patience=10,
         threshold=0.01,
         min_lr=1e-8,
-
         # Early Stopping
         early_stopping_patience=60,
         early_stopping_threshold=1e-5,
-
         # DataLoader
         batch_size=32,
-
         # Checkpoint
         saving_threshold=0.001,
         save_path="checkpoints",
-
         callbacks=None,
     ):
         super().__init__()
@@ -149,7 +161,7 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
         self.loss_reg = loss_reg
 
         # l1 reg
-        self.l1_lambda=l1_lambda
+        self.l1_lambda = l1_lambda
 
         # Optimizer
         self.optim = optim
@@ -204,26 +216,35 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
                 threshold=self.threshold,
                 min_lr=self.min_lr,
             )
-        
-    def fit(self, X, y, eval_set,fold_idx):
+
+    def fit(self, X, y, eval_set, fold_idx):
+        """Создаёт сеть и обучает её с оценкой на переданном eval_set.
+
+        При каждом вызове заново создаёт архитектуру и объекты обучения.
+        После каждой эпохи сохраняет метрики и learning rate, выполняет шаг
+        scheduler и вызывает callbacks.
+
+        Args:
+            X: DataFrame с подготовленными признаками. Категории представлены
+                целочисленными кодами, числовые признаки уже масштабированы.
+            y: Целевая переменная в порядке строк X.
+            eval_set: Пара (X_val, y_val), подготовленная тем же preprocessor.
+            fold_idx: Номер фолда для истории обучения и callbacks.
+
+        Returns:
+            MyModel: Обученный экземпляр. Если подключён CheckpointManager,
+                после завершения восстанавливаются сохранённые лучшие веса.
+        """
         # Определяем реально доступные признаки
         self.fold_idx = fold_idx
 
-        self.cat_cols_ = [
-            col for col in self.cat_cols
-            if col in X.columns
-        ]
+        self.cat_cols_ = [col for col in self.cat_cols if col in X.columns]
 
-        self.num_cols_ = [
-            col for col in self.num_cols
-            if col in X.columns
-        ]
-        #Распаковываем X
-        self.cat_num = [
-            int(X[col].max()) + 1
-            for col in self.cat_cols_]
-        
-        self.num_num =  X[self.num_cols_].shape[1]
+        self.num_cols_ = [col for col in self.num_cols if col in X.columns]
+        # Распаковываем X
+        self.cat_num = [int(X[col].max()) + 1 for col in self.cat_cols_]
+
+        self.num_num = X[self.num_cols_].shape[1]
 
         X_train_cat = X[self.cat_cols_]
         X_train_num = X[self.num_cols_]
@@ -233,10 +254,8 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
         unknown = set(X.columns) - used_columns
 
         if unknown:
-            raise ValueError(
-                f"Входные признаки не отнесены к cat/num: {unknown}"
-            )
-        
+            raise ValueError(f"Входные признаки не отнесены к cat/num: {unknown}")
+
         X_val, y_val = eval_set
 
         X_val_cat = X_val[self.cat_cols_]
@@ -246,8 +265,12 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
             train_loader,
             val_loader,
         ) = transform_data(
-            X_train_cat, X_train_num, 
-            X_val_cat,X_val_num, y, y_val,
+            X_train_cat,
+            X_train_num,
+            X_val_cat,
+            X_val_num,
+            y,
+            y_val,
             self.cat_cols_,
             self.num_cols_,
             self.batch_size,
@@ -284,7 +307,9 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
             self.epochs_val_RSME.append(self.val_RMSE)
 
             if self.lr_scheduler_ is not None:
-                if isinstance(self.lr_scheduler_, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if isinstance(
+                    self.lr_scheduler_, torch.optim.lr_scheduler.ReduceLROnPlateau
+                ):
                     self.lr_scheduler_.step(self.val_RMSE)
                 else:
                     self.lr_scheduler_.step()
@@ -303,11 +328,13 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
     def build_model(self):
         embeddings = []
         for n_cat in self.cat_num:
-            embeddings.append(nn.Embedding(
-                num_embeddings=n_cat,
-                embedding_dim=self.emb_dim,
-                padding_idx=0,
-            ))
+            embeddings.append(
+                nn.Embedding(
+                    num_embeddings=n_cat,
+                    embedding_dim=self.emb_dim,
+                    padding_idx=0,
+                )
+            )
         self.embeddings = nn.ModuleList(embeddings)
         n_embeddings = sum(embedding.embedding_dim for embedding in self.embeddings)
         n_features = self.num_num + n_embeddings
@@ -347,13 +374,13 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
             )
 
             loss = mse_loss + self.l1_lambda * l1_penalty
-            
+
             loss.backward()
             self.opt.step()
 
             batch_size = targets.numel()
             loss_sum += loss.item() * batch_size
-            #detach() нужен, чтобы расчёт метрики RMSE не участвовал в построении графа вычислений
+            # detach() нужен, чтобы расчёт метрики RMSE не участвовал в построении графа вычислений
             squared_error_sum += (pred.detach() - targets).square().sum().item()
             total_samples += batch_size
 
@@ -384,10 +411,11 @@ class MyModel(nn.Module,RegressorMixin,BaseEstimator):
         self.eval()
         X_cat = X[self.cat_cols_]
         X_num = X[self.num_cols_]
-        # X_cat = self.encoder.transform(X_cat) + 1
-        # X_num = self.scaler.transform(X_num)
+
         X_cat = torch.as_tensor(np.asarray(X_cat), dtype=torch.long, device=self.device)
-        X_num = torch.as_tensor(np.asarray(X_num), dtype=torch.float32, device=self.device)
+        X_num = torch.as_tensor(
+            np.asarray(X_num), dtype=torch.float32, device=self.device
+        )
         with torch.no_grad():
             pred = self(X_num, X_cat)
         return pred.cpu().numpy().reshape(-1)

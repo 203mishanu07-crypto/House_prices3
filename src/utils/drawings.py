@@ -1,12 +1,13 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-from IPython.display import display
+import numpy as np
 import pandas as pd
+import seaborn as sns
 import shap
+from IPython.display import display
 
-class Drawer():
-# Отбирает из результатов все значения с целевым, а остальные по указаному фиксу
+
+class Drawer:
+    # Отбирает из результатов все значения с целевым, а остальные по указаному фиксу
     @staticmethod
     def _filter_fixed_params(results, fixed_params, varying_params):
         if fixed_params is None:
@@ -22,8 +23,7 @@ class Drawer():
 
             if column not in data.columns:
                 raise ValueError(
-                    f"Нельзя зафиксировать {parameter}: "
-                    f"столбец {column} отсутствует."
+                    f"Нельзя зафиксировать {parameter}: столбец {column} отсутствует."
                 )
 
             if isinstance(value, (list, tuple, np.ndarray)):
@@ -39,20 +39,23 @@ class Drawer():
             elif np.isscalar(value) and pd.isna(value):
                 mask = data[column].isna()
             else:
-                mask = data[column].map(
-                    lambda x: (
-                        False
-                        if isinstance(x, (list, tuple, np.ndarray))
-                        else x == value
+                mask = (
+                    data[column]
+                    .map(
+                        lambda x: (
+                            False
+                            if isinstance(x, (list, tuple, np.ndarray))
+                            else x == value
+                        )
                     )
-                ).fillna(False)
+                    .fillna(False)
+                )
 
             data = data.loc[mask].copy()
 
         if data.empty:
             raise ValueError(
-                "После фиксации остальных параметров "
-                "не осталось результатов."
+                "После фиксации остальных параметров не осталось результатов."
             )
 
         return data
@@ -146,26 +149,31 @@ class Drawer():
 
         return heatmap
 
-
     @staticmethod
-    def draw_graphics(results_df,oof_rmse,pipeline,best_results,model):
-        print(f'Best OOF {oof_rmse}, best mean val RMSE {best_results['best_mean_val_score']}, best_val_std {best_results['best_val_std']}')
-        title = 'Best searched params'
-        print(title.center(20, '-'))
-        best_results_df = pd.DataFrame([best_results['best_params']])
+    def draw_graphics(results_df, oof_rmse, pipeline, best_results, model):
+        print(
+            f"Best OOF {oof_rmse}, best mean val RMSE {best_results['best_mean_val_score']}, best_val_std {best_results['best_val_std']}"
+        )
+        title = "Best searched params"
+        print(title.center(20, "-"))
+        best_results_df = pd.DataFrame([best_results["best_params"]])
 
-        if 'model__num_cols' in best_results_df.columns:
-            best_results_df = best_results_df.drop('model__num_cols',axis = 1)
-        if 'model__cat_cols' in best_results_df.columns:
-            best_results_df = best_results_df.drop('model__cat_cols',axis = 1)
-        
+        if "model__num_cols" in best_results_df.columns:
+            best_results_df = best_results_df.drop("model__num_cols", axis=1)
+        if "model__cat_cols" in best_results_df.columns:
+            best_results_df = best_results_df.drop("model__cat_cols", axis=1)
+
         print(best_results_df.T.to_string(header=False))
-        
-        fig1 = Drawer.draw_parameter(results_df,pipeline[model]['plot_param'],best_results['best_params'])
-        fig2 = Drawer.draw_heatmap(results=results_df,
-                                parameter_x=pipeline[model]['heatmap_params'][0],
-                                parameter_y=pipeline[model]['heatmap_params'][1],
-                                fixed_params=best_results['best_params'])
+
+        fig1 = Drawer.draw_parameter(
+            results_df, pipeline[model]["plot_param"], best_results["best_params"]
+        )
+        fig2 = Drawer.draw_heatmap(
+            results=results_df,
+            parameter_x=pipeline[model]["heatmap_params"][0],
+            parameter_y=pipeline[model]["heatmap_params"][1],
+            fixed_params=best_results["best_params"],
+        )
 
         fig, axes = plt.subplots(1, 2, figsize=(20, 10))
 
@@ -179,77 +187,72 @@ class Drawer():
             plt.close(source_fig)
 
         fig.tight_layout()
-        
+
         return fig
 
     @staticmethod
     def draw_lerning_curves(histories_by_candidate):
-            nplots = len(histories_by_candidate) + 1
-            ncols = 2
-            nrows = (nplots + ncols - 1) // ncols
+        nplots = len(histories_by_candidate) + 1
+        ncols = 2
+        nrows = (nplots + ncols - 1) // ncols
 
-            fig, axes = plt.subplots(
-                nrows,
-                ncols,
-                figsize=(14, 4 * nrows),
-                squeeze=False,
-                constrained_layout=True,
-            )
-            axes = axes.ravel()
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(14, 4 * nrows),
+            squeeze=False,
+            constrained_layout=True,
+        )
+        axes = axes.ravel()
 
-            # Метрики каждого фолда.
-            for fold_idx, history in enumerate(histories_by_candidate):
-                ax = axes[fold_idx]
+        # Метрики каждого фолда.
+        for fold_idx, history in enumerate(histories_by_candidate):
+            ax = axes[fold_idx]
 
-                ax.plot(history["train_rmse"], label="Train RMSE")
-                ax.plot(history["val_rmse"], label="Validation RMSE")
+            ax.plot(history["train_rmse"], label="Train RMSE")
+            ax.plot(history["val_rmse"], label="Validation RMSE")
 
-                ax.set_title(f"Fold {history.get('fold', fold_idx + 1)}")
-                ax.set_xlabel("Epoch")
-                ax.set_ylabel("RMSE")
-                ax.legend()
-                ax.grid(alpha=0.3)
+            ax.set_title(f"Fold {history.get('fold', fold_idx + 1)}")
+            ax.set_xlabel("Epoch")
+            ax.set_ylabel("RMSE")
+            ax.legend()
+            ax.grid(alpha=0.3)
+            ax.set_ylim(0.01, 1)
 
-            ax_lr = axes[len(histories_by_candidate)]
+        ax_lr = axes[len(histories_by_candidate)]
 
-            for fold_idx, history in enumerate(histories_by_candidate, start=1):
-                ax_lr.plot(
-                    history["learning_rate"],
-                    label=f"Fold {history.get('fold', fold_idx)}",
-                )
-
-            ax_lr.set_title("Learning rate by fold")
-            ax_lr.set_xlabel("Epoch")
-            ax_lr.set_ylabel("Learning rate")
-            ax_lr.set_yscale("log")
-            ax_lr.legend()
-            ax_lr.grid(alpha=0.3)
-
-            fig.suptitle(
-                "Кривые обучения лучшей комбинации параметров",
-                fontsize=16,
-                fontweight="bold",
+        for fold_idx, history in enumerate(histories_by_candidate, start=1):
+            ax_lr.plot(
+                history["learning_rate"],
+                label=f"Fold {history.get('fold', fold_idx)}",
             )
 
-            return fig
+        ax_lr.set_title("Learning rate by fold")
+        ax_lr.set_xlabel("Epoch")
+        ax_lr.set_ylabel("Learning rate")
+        ax_lr.set_yscale("log")
+        ax_lr.legend()
+        ax_lr.grid(alpha=0.3)
+
+        fig.suptitle(
+            "Кривые обучения лучшей комбинации параметров",
+            fontsize=16,
+            fontweight="bold",
+        )
+
+        return fig
 
     @staticmethod
-    def draw_shap_plots(oof_explanation,feature_names=None):
+    def draw_shap_plots(oof_explanation, feature_names=None):
 
         if feature_names is not None:
             oof_explanation.feature_names = feature_names
 
         plots = {
-            "bar": lambda: shap.plots.bar(
-                oof_explanation,
-                max_display=30,
-                show=False
-            ),
+            "bar": lambda: shap.plots.bar(oof_explanation, max_display=30, show=False),
             "heatmap": lambda: shap.plots.heatmap(
-                oof_explanation[:100],
-                max_display=30,
-                show=False
-            )
+                oof_explanation[:100], max_display=30, show=False
+            ),
         }
 
         figures = {}
@@ -266,5 +269,5 @@ class Drawer():
             display(fig)
 
             plt.close(fig)
-            
+
         return figures
