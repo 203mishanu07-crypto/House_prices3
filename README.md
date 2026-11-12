@@ -7,7 +7,7 @@
 Kaggle House pricing begginers competition (Block 2 final prodject)
 Немного подогнал шаблон непосредственно под проект, чтобы было удобнее 
 
-Project Organization
+```Project Organization
 ├── README.md                    <- Описание проекта, экспериментов и результатов
 ├── config.py                    <- Пути к данным и моделям, seed, устройство и настройки MLflow
 ├── Experiments.ipynb            <- Основной ноутбук: обучение, подбор параметров и отбор признаков
@@ -49,7 +49,7 @@ Project Organization
         ├── mymlflow.py         <- Логирование экспериментов в MLflow
         └── model_saving.py     <- Сохранение и загрузка моделей и списков признаков
 
-
+```
 --------
 
 Результат и модели
