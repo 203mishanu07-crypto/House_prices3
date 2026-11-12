@@ -1,11 +1,12 @@
 import mlflow
 from mlflow import MlflowClient
 
+from config import Config
 
 # python -m mlflow server --port 5000
 class Mlflow_logger:
     def __init__(self, experiment_name):
-        self.uri = "http://127.0.0.1:5000"
+        self.uri = Config.experiment_uri
         self.experiment_name = experiment_name
 
     def setup_connection(self):
