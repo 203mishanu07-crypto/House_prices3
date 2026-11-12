@@ -91,8 +91,9 @@ Kaggle House pricing begginers competition (Block 2 final prodject)
 
    Интерфейс экспериментов доступен по адресу: http://localhost:5000.
    Адрес сервера должен совпадать с `Config.experiment_uri`.
+   Далее создайте эксперимент, имя эксперимента должно совпадать с указанным в Config.experiments_name
 
-4. Запустите обучение:
+5. Запустите обучение:
 
    ```bash
    python main.py
@@ -100,7 +101,7 @@ Kaggle House pricing begginers competition (Block 2 final prodject)
 
    Скрипт обучает модели на кросс-валидации, сохраняет их и выводит итоговые метрики. Параметры, метрики и графики логируются в MLflow.
 
-5. Для создания сабмитов запустите:
+6. Для создания сабмитов запустите:
 
    ```bash
    python inference.py
