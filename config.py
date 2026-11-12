@@ -12,20 +12,12 @@ class Config:
     experiment_uri = "http://127.0.0.1:5000"
     experiments_name = "House_Prices_Kaggle"
 
-    path_train_data = Path(
-        r".\House-prices3\data\raw\train.csv"
-    )
-    path_test_data = Path(
-        r".\House-prices3\data\raw\test.csv"
-    )
-
-    path_to_save_models = Path(
-        r.\House-prices3\Models"
-    )
-
-    path_to_submission = Path(
-        r".\House-prices3\data\submission"
-    )
+    ROOT = Path(__file__).resolve().parent
+    
+    path_train_data = ROOT / "data/raw/train.csv"
+    path_test_data = ROOT / "data/raw/test.csv"
+    path_to_save_models = ROOT / "Models"
+    path_to_submission = ROOT / "data/submission"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
