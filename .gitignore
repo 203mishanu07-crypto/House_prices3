@@ -84,3 +84,6 @@ dist/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Хранилище mlflow
+mlflow.db
