@@ -2,7 +2,6 @@ import mlflow
 from mlflow import MlflowClient
 
 from config import Config
-
 # python -m mlflow server --port 5000
 class Mlflow_logger:
     def __init__(self, experiment_name):

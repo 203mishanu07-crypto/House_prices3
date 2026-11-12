@@ -1,0 +1,86 @@
+# Python: кэш и скомпилированные файлы
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+# Секреты и локальные переменные окружения
+.env
+.env.*
+!.env.example
+!.env.template
+kaggle.json
+
+# Данные и сабмиты (сохраняем структуру папок через .gitkeep)
+/data/**
+!/data/**/
+!/data/**/.gitkeep
+/submission/
+/submissions/
+/train_data.csv
+
+# Сохранённые модели и веса
+/Models/**
+!/Models/**/
+!/Models/**/.gitkeep
+/models/**
+!/models/**/
+!/models/**/.gitkeep
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.cbm
+*.h5
+*.hdf5
+*.safetensors
+
+# Обучение и трекинг экспериментов
+checkpoints/
+catboost_info/
+lightning_logs/
+runs/
+wandb/
+mlruns/
+mlartifacts/
+mlflow.db
+mlflow.db-*
+*.log
+
+# Jupyter: ноутбуки .ipynb остаются в репозитории
+.ipynb_checkpoints/
+
+# Сборка Python-пакетов
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Локальные настройки IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Временные и системные файлы
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
